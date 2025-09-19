@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Shield, AlertCircle, CheckCircle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import heroBg from "@/assets/faeterj-hero-bg.jpg";
 
 // Validação de e-mail institucional
@@ -12,25 +14,58 @@ export default function LoginPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
 
-  const handleGoogleLogin = () => {
+  useEffect(() => {
+    // Verificar se usuário já está logado
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        window.location.href = "/dashboard"; // Redirecionar se já logado
+      }
+    };
+    checkUser();
+  }, []);
+
+  const handleGoogleLogin = async () => {
     setIsLoading(true);
     setErrorMessage("");
+    setSuccessMessage("");
     
-    // Simulação da validação do Google OAuth
-    // Em produção, isso seria feito com a API do Google
-    setTimeout(() => {
-      const mockEmail = "exemplo@gmail.com"; // Simular e-mail não institucional
-      
-      if (!mockEmail.endsWith(INSTITUTIONAL_EMAIL_DOMAIN)) {
-        setErrorMessage(
-          `Acesso negado! Utilize apenas e-mails institucionais com o domínio ${INSTITUTIONAL_EMAIL_DOMAIN}`
-        );
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+            hd: 'aluno.faeterj-prc.faetec.rj.gov.br' // Forçar domínio institucional
+          }
+        }
+      });
+
+      if (error) {
+        console.error('Erro no login:', error);
+        setErrorMessage('Erro ao fazer login. Tente novamente.');
+        toast({
+          title: "Erro no login",
+          description: error.message,
+          variant: "destructive",
+        });
       } else {
-        setSuccessMessage("Login realizado com sucesso!");
+        setSuccessMessage("Redirecionando para autenticação...");
+        toast({
+          title: "Sucesso",
+          description: "Redirecionando para o Google...",
+        });
       }
+    } catch (error) {
+      console.error('Erro inesperado:', error);
+      setErrorMessage('Erro inesperado ao fazer login.');
+    } finally {
       setIsLoading(false);
-    }, 2000);
+    }
   };
 
   return (
